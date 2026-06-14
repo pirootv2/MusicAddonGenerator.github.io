@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マイクラ統合版 曲追加アドオンジェネレーター</title>
+    <style>
+        :root {
+            --bg-color: #121416;
+            --text-color: #e3e2e6;
+            --accent-color: #a370f7;
+            --container-bg: #1e2225;
+            --border-color: #3a3f44;
+            --input-bg: #0a0c0d;
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 950px;
+            margin: 0 auto;
+            background: var(--container-bg);
+            padding: 35px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+        }
+        h1 {
+            text-align: center;
+            color: var(--accent-color);
+            margin-bottom: 25px;
+            font-size: 24px;
+            text-shadow: 0 0 10px rgba(163,112,247,0.2);
+        }
+        h2, h3 {
+            color: #fff;
+            border-left: 5px solid var(--accent-color);
+            padding-left: 10px;
+            margin-top: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #c4c6d0;
+        }
+        input[type="text"], input[type="file"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        textarea {
+            resize: vertical;
+            height: 100px;
+            font-family: inherit;
+        }
+        .track-card {
+            background: #15181b;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #2d3238;
+        }
+        .track-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #adff2f;
+            margin-bottom: 10px;
+        }
+        .duration-badge {
+            display: inline-block;
+            background: #2a3b2a;
+            color: #81c784;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+        .btn-panel {
+            margin-top: 30px;
+            background: #15181b;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #2d3238;
+        }
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .btn {
+            background-color: var(--accent-color);
+            color: #fff;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        .btn:hover {
+            background-color: #bfa3ff;
+            box-shadow: 0 0 12px rgba(163,112,247,0.4);
+        }
+        .btn-add {
+            background-color: #17a2b8;
+            margin-bottom: 20px;
+        }
+        .btn-add:hover {
+            background-color: #1ee0ff;
+        }
+        .btn-download {
+            background-color: #00e676;
+            color: #003300;
+        }
+        .btn-download:hover {
+            background-color: #66ffb3;
+        }
+        .btn-zip {
+            background-color: #ffb300;
+            color: #332200;
+        }
+        .btn-zip:hover {
+            background-color: #ffe066;
+        }
+        .btn:disabled {
+            background-color: #43474e;
+            color: #8b8d96;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .output-box {
+            margin-top: 35px;
+            background: #090a0c;
+            padding: 25px;
+            border-radius: 8px;
+            display: none;
+            border: 1px solid #222529;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #111315;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #222529;
+            color: #a370f7;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>歌詞＆音量バー搭載 楽曲管理アドオンジェネレーター (v17 .mcpack構造修正)</h1>
+    
+    <div class="form-group">
+        <label for="packName">アドオン名 (Minecraft内の表示名):</label>
+        <input type="text" id="packName" value="Music Menu Radio Pack">
+    </div>
+
+    <div class="form-group">
+        <label>音声ファイルを選択 (.ogg推奨, 英語ファイル名推奨):</label>
+        <input type="file" id="audioFiles" accept=".ogg,.wav,.mp3" multiple style="display:none;" onchange="handleFileSelect(this.files)">
+        <button class="btn btn-add" type="button" onclick="document.getElementById('audioFiles').click()">＋ 音楽ファイルを追加する</button>
+    </div>
+
+    <div id="tracksContainer">
+        </div>
+
+    <div class="btn-panel">
+        <label style="color:var(--accent-color); font-weight: bold;">ステップ1: パックデータを構築・確定します</label>
+        <button class="btn" style="width:100%; margin-top:8px;" onclick="buildAddonStructure()">アドオンデータを確定ビルド</button>
+        
+        <label style="color:var(--accent-color); font-weight: bold; display:block; margin-top:20px;">ステップ2: 出力形式を選択してダウンロード</label>
+        <div class="btn-grid">
+            <button class="btn btn-download" id="dlMcaddonBtn" onclick="downloadPackage('mcaddon')" disabled>アドオン(.mcaddon)を保存</button>
+            <button class="btn btn-zip" id="dlZipBtn" onclick="downloadPackage('zip')" disabled>開発用ZIP(.zip)を保存</button>
+        </div>
+    </div>
+
+    <div id="outputArea" class="output-box">
+        <h2>パック構成コードのプレビュー</h2>
+        <h3>BP/scripts/main.js</h3>
+        <pre id="scriptPreview"></pre>
+    </div>
+</div>
+
+<script>
+    let globalFiles = [];
+    let rpFilesList = [];
+    let bpFilesList = [];
+
+    function generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    const crcTable = (() => {
+        let c, table = [];
+        for (let n = 0; n < 256; n++) {
+            c = n;
+            for (let k = 0; k < 8; k++) {
+                c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+            }
+            table[n] = c;
+        }
+        return table;
+    })();
+
+    function calculateCRC32(uint8Array) {
+        let crc = 0 ^ (-1);
+        for (let i = 0; i < uint8Array.length; i++) {
+            crc = (crc >>> 8) ^ crcTable[(crc ^ uint8Array[i]) & 0xFF];
+        }
+        return (crc ^ (-1)) >>> 0;
+    }
+
+    function getAudioDuration(file) {
+        return new Promise((resolve) => {
+            const audio = new Audio();
+            const objectURL = URL.createObjectURL(file);
+            audio.src = objectURL;
+            audio.addEventListener('loadedmetadata', () => {
+                URL.revokeObjectURL(objectURL);
+                resolve(audio.duration);
+            });
+            audio.addEventListener('error', () => {
+                URL.revokeObjectURL(objectURL);
+                resolve(180);
+            });
+        });
+    }
+
+    async function handleFileSelect(files) {
+        const container = document.getElementById('tracksContainer');
+        if (globalFiles.length === 0) {
+            container.innerHTML = '<h3>各曲の設定を行ってください</h3>';
+        }
+
+        for (let file of Array.from(files)) {
+            globalFiles.push(file);
+            const index = globalFiles.length - 1;
+            const baseDisplayName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+            
+            const durationSeconds = await getAudioDuration(file);
+            const roundedSeconds = Math.ceil(durationSeconds);
+            
+            container.insertAdjacentHTML('beforeend', `
+                <div class="track-card" id="card_${index}" data-index="${index}" data-duration="${roundedSeconds}">
+                    <div class="track-title">トラック ${index + 1}: ${file.name} (ID: custom:sound${index})</div>
+                    <div class="duration-badge">⏱ 自動計測された長さ: ${roundedSeconds} 秒</div>
+                    <div class="form-group">
+                        <label>ゲーム内での表示名 (日本語OK):</label>
+                        <input type="text" class="track-display-name" value="${baseDisplayName}">
+                    </div>
+                    <div class="form-group">
+                        <label>歌詞（改行可能）:</label>
+                        <textarea class="track-lyrics" placeholder="ここに歌詞を入力してください..."></textarea>
+                    </div>
+                </div>
+            `);
+        }
+
+        document.getElementById('dlMcaddonBtn').disabled = true;
+        document.getElementById('dlZipBtn').disabled = true;
+    }
+
+    async function buildAddonStructure() {
+        if (globalFiles.length === 0) {
+            alert('音声ファイルを追加してください。');
+            return;
+        }
+
+        const packName = document.getElementById('packName').value || "Music Menu Radio Pack";
+        rpFilesList = [];
+        bpFilesList = [];
+        const encoder = new TextEncoder();
+
+        const rpUuid1 = generateUUID();
+        const rpUuid2 = generateUUID();
+        const bpUuid1 = generateUUID();
+        const bpUuid2 = generateUUID();
+
+        let trackDataArray = [];
+        const cards = document.querySelectorAll('.track-card');
+        
+        for (let i = 0; i < globalFiles.length; i++) {
+            const file = globalFiles[i];
+            const card = cards[i];
+            const displayName = card.querySelector('.track-display-name').value || `Track ${i+1}`;
+            const lyrics = card.querySelector('.track-lyrics').value || "(歌詞なし)";
+            
+            const durationSeconds = parseInt(card.getAttribute('data-duration')) || 180;
+            const durationTicks = durationSeconds * 20;
+
+            const internalSoundId = `custom:sound${i}`;
+            const internalPathName = `sounds/custom_radio/track_${i}`;
+
+            const arrayBuffer = await file.arrayBuffer();
+            const audioUint8 = new Uint8Array(arrayBuffer);
+
+            // RP内の音楽パス（mcpack直下からのパスにするため、先頭の「RP/」を排除）
+            rpFilesList.push({
+                path: `sounds/custom_radio/track_${i}.ogg`,
+                data: audioUint8
+            });
+
+            trackDataArray.push({
+                soundId: internalSoundId,
+                filePath: internalPathName,
+                title: displayName,
+                durationTicks: durationTicks,
+                lyrics: lyrics.replace(/\r?\n/g, '\\n')
+            });
+        }
+
+        // --- RP Manifest ---
+        let rpManifest = {
+            "format_version": 2,
+            "header": { "description": "Radio Pack Resources", "name": packName + " (RP)", "uuid": rpUuid1, "version": [1, 0, 0], "min_engine_version": [1, 21, 0] },
+            "modules": [{ "description": "Resources", "type": "resources", "uuid": rpUuid2, "version": [1, 0, 0] }]
+        };
+        rpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(rpManifest, null, 4)) });
+
+        // --- RP Sound Definitions ---
+        let soundDefs = {
+            "format_version": "1.14.0",
+            "sound_definitions": {}
+        };
+        trackDataArray.forEach(track => {
+            soundDefs.sound_definitions[track.soundId] = {
+                "category": "ui",
+                "sounds": [{ "name": track.filePath, "stream": true, "load_on_low_memory": true }]
+            };
+        });
+        rpFilesList.push({ path: "sounds/sound_definitions.json", data: encoder.encode(JSON.stringify(soundDefs, null, 4)) });
+
+        // --- BP Manifest ---
+        let bpManifest = {
+            "format_version": 2,
+            "header": { "description": "Radio Pack Behaviors", "name": packName + " (BP)", "uuid": bpUuid1, "version": [1, 0, 0], "min_engine_version": [1, 21, 0] },
+            "modules": [
+                { "description": "Behavior Data System", "type": "data", "uuid": bpUuid2, "version": [1, 0, 0] },
+                { "description": "Scripting Engine", "language": "javascript", "type": "script", "uuid": generateUUID(), "version": [1, 0, 0], "entry": "scripts/main.js" }
+            ],
+            "dependencies": [
+                { "module_name": "@minecraft/server", "version": "1.13.0" },
+                { "module_name": "@minecraft/server-ui", "version": "1.2.0" }
+            ]
+        };
+        bpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(bpManifest, null, 4)) });
+
+        // --- BP Scripts ---
+        let scriptContent = `import { world, system } from "@minecraft/server";
+import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
+
+const tracks = ${JSON.stringify(trackDataArray, null, 4)};
+const playerStates = new Map();
+
+system.runInterval(() => {
+    for (const player of world.getAllPlayers()) {
+        const container = player.getComponent("minecraft:inventory")?.container;
+        if (!container) continue;
+        
+        let hasController = false;
+        for (let slot = 0; slot < container.size; slot++) {
+            const item = container.getItem(slot);
+            if (item && item.typeId === "minecraft:command_block") {
+                hasController = true;
+                break;
+            }
+        }
+        
+        if (!hasController) {
+            player.runCommandAsync("give @s command_block 1 0 {\\"minecraft:item_lock\\":{\\"mode\\":\\"lock_in_slot\\"},\\"minecraft:keep_on_death\\":{}}");
+            player.runCommandAsync("replaceitem entity @s slot.weapon.mainhand 0 command_block 1 0 {\\"display\\":{\\"Name\\":\\"§aミュージックコントローラー\\"}}");
+        }
+    }
+}, 40);
+
+world.beforeEvents.itemUse.subscribe((event) => {
+    if (event.itemStack.typeId !== "minecraft:command_block") return;
+    const player = event.source;
+    event.cancel = true;
+    system.run(() => { openMainMenu(player); });
+});
+
+function openMainMenu(player) {
+    if (!playerStates.has(player.id)) {
+        playerStates.set(player.id, { currentSound: null, loop: false, volume: 1.0, nextLoopTimer: null });
+    }
+    const state = playerStates.get(player.id);
+
+    const form = new ActionFormData()
+        .title("§l音楽プレイヤーメニュー")
+        .body("再生したい楽曲をリストから選んでください。\\n現在の音量: " + Math.round(state.volume * 100) + "%")
+        .button("すべての音楽を停止", "textures/blocks/barrier")
+        .button("⚙ 音量を調整する (音量バー)", "textures/items/comparator");
+
+    tracks.forEach(track => {
+        form.button(track.title, "textures/items/record_11");
+    });
+
+    form.show(player).then(response => {
+        if (response.canceled) return;
+        if (response.selection === 0) {
+            stopCurrentMusic(player);
+            player.sendMessage("§cすべての音楽を停止しました。");
+            return;
+        }
+        if (response.selection === 1) {
+            openVolumeMenu(player);
+            return;
+        }
+        openTrackMenu(player, response.selection - 2);
+    }).catch(err => console.error(err));
+}
+
+function openVolumeMenu(player) {
+    const state = playerStates.get(player.id);
+    const form = new ModalFormData()
+        .title("音量設定")
+        .slider("音量調整バー (0% - 100%)", 0, 100, 5, Math.round(state.volume * 100));
+
+    form.show(player).then(response => {
+        if (response.canceled) { openMainMenu(player); return; }
+        state.volume = response.formValues[0] / 100;
+        player.sendMessage("§a音量を " + response.formValues[0] + "% に変更しました。");
+        
+        if (state.currentSound) {
+            const currentIdx = tracks.findIndex(t => t.soundId === state.currentSound);
+            if (currentIdx !== -1) {
+                if (state.nextLoopTimer) { system.clearRun(state.nextLoopTimer); state.nextLoopTimer = null; }
+                player.runCommandAsync("stopsound @s " + state.currentSound);
+                executePlaySoundCommand(player, state.currentSound, state.volume, state.loop, currentIdx);
+            }
+        }
+        openMainMenu(player);
+    }).catch(err => console.error(err));
+}
+
+function openTrackMenu(player, index) {
+    const track = tracks[index];
+    const state = playerStates.get(player.id);
+
+    const form = new ActionFormData()
+        .title(track.title)
+        .body("ループ再生設定: " + (state.loop ? "§a有効" : "§c無効") + "\\n\\n【 歌詞画面 】\\n" + track.lyrics.replace(/\\\\n/g, '\\n'))
+        .button("この曲を再生する", "textures/items/emerald")
+        .button(state.loop ? "ループを【無効】にする" : "ループを【有効】にする", "textures/items/compass_item")
+        .button("メインメニューに戻る", "textures/blocks/chest_front");
+
+    form.show(player).then(response => {
+        if (response.canceled) return;
+        if (response.selection === 0) {
+            playMusic(player, index);
+        } else if (response.selection === 1) {
+            state.loop = !state.loop;
+            player.sendMessage("§e[" + track.title + "] のループ設定を切り替えました。");
+            openTrackMenu(player, index);
+        } else if (response.selection === 2) {
+            openMainMenu(player);
+        }
+    });
+}
+
+function playMusic(player, index) {
+    stopCurrentMusic(player);
+    const track = tracks[index];
+    const state = playerStates.get(player.id);
+    state.currentSound = track.soundId;
+    executePlaySoundCommand(player, track.soundId, state.volume, state.loop, index);
+    player.sendMessage("§b再生中: " + track.title + " (音量: " + Math.round(state.volume * 100) + "%)");
+}
+
+function executePlaySoundCommand(player, soundId, volume, loop, index) {
+    player.runCommandAsync("playsound " + soundId + " @s ~ ~ ~ " + volume.toFixed(2));
+    const track = tracks[index];
+    const state = playerStates.get(player.id);
+    if (state.nextLoopTimer) { system.clearRun(state.nextLoopTimer); state.nextLoopTimer = null; }
+
+    if (loop) {
+        state.nextLoopTimer = system.runTimeout(() => {
+            if (state.currentSound === soundId && state.loop) {
+                executePlaySoundCommand(player, soundId, volume, loop, index);
+            }
+        }, track.durationTicks);
+    }
+}
+
+function stopCurrentMusic(player) {
+    const state = playerStates.get(player.id);
+    if (state) {
+        if (state.nextLoopTimer) { system.clearRun(state.nextLoopTimer); state.nextLoopTimer = null; }
+        if (state.currentSound) {
+            player.runCommandAsync("stopsound @s " + state.currentSound);
+            state.currentSound = null;
+        }
+    }
+}
+`;
+        bpFilesList.push({ path: "scripts/main.js", data: encoder.encode(scriptContent) });
+
+        document.getElementById('scriptPreview').innerText = scriptContent;
+        document.getElementById('outputArea').style.display = 'block';
+        
+        document.getElementById('dlMcaddonBtn').disabled = false;
+        document.getElementById('dlZipBtn').disabled = false;
+        document.getElementById('outputArea').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // 単一の.mcpack用バイナリ(ZIP)データを裏でビルドする共通処理
+    function generateZipBuffer(filesList) {
+        let localHeaders = [];
+        let centralDirectoryHeaders = [];
+        let currentOffset = 0;
+
+        for (let file of filesList) {
+            const pathBytes = new TextEncoder().encode(file.path);
+            const fileData = file.data;
+            const crc = calculateCRC32(fileData);
+            const size = fileData.length;
+            const dosTime = 0x1a00;
+            const dosDate = 0x5cc9;
+            const zipBitFlag = 0x0800; // UTF-8日本語対応フラグ
+
+            const localHeader = new Uint8Array(30 + pathBytes.length);
+            const viewLH = new DataView(localHeader.buffer);
+            viewLH.setUint32(0, 0x04034b50, true);
+            viewLH.setUint16(4, 20, true);
+            viewLH.setUint16(6, zipBitFlag, true);
+            viewLH.setUint16(8, 0, true);
+            viewLH.setUint16(10, dosTime, true);
+            viewLH.setUint16(12, dosDate, true);
+            viewLH.setUint32(14, crc, true);
+            viewLH.setUint32(18, size, true);
+            viewLH.setUint32(22, size, true);
+            viewLH.setUint16(26, pathBytes.length, true);
+            viewLH.setUint16(28, 0, true);
+            localHeader.set(pathBytes, 30);
+
+            localHeaders.push(localHeader);
+            localHeaders.push(fileData);
+
+            const cdHeader = new Uint8Array(46 + pathBytes.length);
+            const viewCD = new DataView(cdHeader.buffer);
+            viewCD.setUint32(0, 0x02014b50, true);
+            viewCD.setUint16(4, 20, true);
+            viewCD.setUint16(6, 20, true);
+            viewCD.setUint16(8, zipBitFlag, true);
+            viewCD.setUint16(10, 0, true);
+            viewCD.setUint16(12, dosTime, true);
+            viewCD.setUint16(14, dosDate, true);
+            viewCD.setUint32(16, crc, true);
+            viewCD.setUint32(20, size, true);
+            viewCD.setUint32(24, size, true);
+            viewCD.setUint16(28, pathBytes.length, true);
+            viewCD.setUint16(30, 0, true);
+            viewCD.setUint16(32, 0, true);
+            viewCD.setUint16(34, 0, true);
+            viewCD.setUint16(36, 0, true);
+            viewCD.setUint32(38, 0, true);
+            viewCD.setUint32(42, currentOffset, true);
+            cdHeader.set(pathBytes, 46);
+
+            centralDirectoryHeaders.push(cdHeader);
+            currentOffset += localHeader.length + fileData.length;
+        }
+
+        let cdPartsLength = centralDirectoryHeaders.reduce((acc, cur) => acc + cur.length, 0);
+        const eodc = new Uint8Array(22);
+        const viewEODC = new DataView(eodc.buffer);
+        viewEODC.setUint32(0, 0x06054b50, true);
+        viewEODC.setUint16(4, 0, true);
+        viewEODC.setUint16(6, 0, true);
+        viewEODC.setUint16(8, filesList.length, true);
+        viewEODC.setUint16(10, filesList.length, true);
+        viewEODC.setUint32(12, cdPartsLength, true);
+        viewEODC.setUint32(16, currentOffset, true);
+        viewEODC.setUint16(20, 0, true);
+
+        let finalParts = [...localHeaders, ...centralDirectoryHeaders, eodc];
+        let totalSize = finalParts.reduce((acc, cur) => acc + cur.length, 0);
+        let finalBuffer = new Uint8Array(totalSize);
+        let currentPosition = 0;
+        for (let part of finalParts) {
+            finalBuffer.set(part, currentPosition);
+            currentPosition += part.length;
+        }
+        return finalBuffer;
+    }
+
+    function downloadPackage(type) {
+        const packName = document.getElementById('packName').value || "MusicMenuRadio";
+        const safePackName = packName.replace(/[^a-zA-Z0-9_-]/g, '_');
+        
+        // それぞれ独立した .mcpack バイナリを作成
+        const rpMcpackBuffer = generateZipBuffer(rpFilesList);
+        const bpMcpackBuffer = generateZipBuffer(bpFilesList);
+
+        let finalBlob;
+        let filename;
+
+        if (type === 'mcaddon') {
+            // 【重要】 .mcaddon の中はフォルダではなく、直接 .mcpack ファイルを2個格納する
+            const mcaddonFiles = [
+                { path: "ResourcePack.mcpack", data: rpMcpackBuffer },
+                { path: "BehaviorPack.mcpack", data: bpMcpackBuffer }
+            ];
+            const finalMcaddonBuffer = generateZipBuffer(mcaddonFiles);
+            finalBlob = new Blob([finalMcaddonBuffer], { type: "application/octet-stream" });
+            filename = `${safePackName}.mcaddon`;
+        } else {
+            // 開発環境用のZIP（これまで通りのフォルダ展開形式）
+            let rawZipFiles = [];
+            rpFilesList.forEach(f => rawZipFiles.push({ path: "RP/" + f.path, data: f.data }));
+            bpFilesList.forEach(f => rawZipFiles.push({ path: "BP/" + f.path, data: f.data }));
+            const finalZipBuffer = generateZipBuffer(rawZipFiles);
+            finalBlob = new Blob([finalZipBuffer], { type: "application/zip" });
+            filename = `${safePackName}.zip`;
+        }
+        
+        const url = URL.createObjectURL(finalBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+</script>
+
+</body>
+</html>
