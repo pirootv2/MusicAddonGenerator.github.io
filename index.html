@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>マイクラ統合版 歌詞UI＆楽曲管理アドオンジェネレーター (v20 全員再生のみOP制限版)</title>
+    <title>マイクラ統合版 Musicアドオンジェネレーター</title>
     <style>
         :root {
             --bg-color: #121416;
@@ -170,7 +170,7 @@
 <body>
 
 <div class="container">
-    <h1>歌詞＆音量バー搭載 楽曲管理アドオンジェネレーター (v20 全員再生のみOP制限版)</h1>
+    <h1>MUSICアドオンジェネレーター</h1>
     
     <div class="form-group">
         <label for="packName">アドオン名 (Minecraft内の表示名):</label>
@@ -342,7 +342,7 @@
         };
         rpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(rpManifest, null, 4)) });
 
-        // --- RP Sound Definitions ---
+        // --- RP Sound Definitions (categoryをuiに変更) ---
         let soundDefs = {
             "format_version": "1.14.0",
             "sound_definitions": {}
@@ -370,7 +370,7 @@
         };
         bpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(bpManifest, null, 4)) });
 
-        // --- BP Scripts (全員配布・全員開けるが、配信ボタンだけホスト限定版) ---
+        // --- BP Scripts (停止機能分離 & playsoundカテゴリをuiに変更) ---
         let scriptContent = `import { world, system } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 
@@ -385,7 +385,7 @@ const globalRadioState = {
     nextLoopTimer: null
 };
 
-// 最初の1人を特定して永続OPタグ(first_op)を固定化＆【全員】にリモコンを自由移動型で常時支給
+// ホスト(first_op)判定＆リモコンのインベントリ完全ロック補給
 system.runInterval(() => {
     const allPlayers = world.getAllPlayers();
     if (allPlayers.length === 0) return;
@@ -397,7 +397,6 @@ system.runInterval(() => {
         firstPlayer.sendMessage("§a[RadioSystem] あなたがこのワールドの初代ホスト(OP)に決定しました。");
     }
 
-    // 全プレイヤーに漏れなくリモコンを支給（インベントリ移動自由）
     for (const player of allPlayers) {
         const container = player.getComponent("minecraft:inventory")?.container;
         if (!container) continue;
@@ -412,13 +411,23 @@ system.runInterval(() => {
         }
         
         if (!hasController) {
-            player.runCommandAsync("give @s command_block 1 0 {\\"minecraft:keep_on_death\\":{}}");
-            player.runCommandAsync("replaceitem entity @s slot.weapon.mainhand 0 command_block 1 0 {\\"display\\":{\\"Name\\":\\"§aミュージックコントローラー\\"}}");
+            player.runCommandAsync("give @s command_block 1 0 {\\"minecraft:item_lock\\":{\\"mode\\":\\"lock_in_inventory\\"},\\"minecraft:keep_on_death\\":{}}");
+            player.runCommandAsync("replaceitem entity @s slot.weapon.mainhand 0 command_block 1 0 {\\"display\\":{\\"Name\\":\\"§aミュージックコントローラー\\"},\\"minecraft:item_lock\\":{\\"mode\\":\\"lock_in_inventory\\"},\\"minecraft:keep_on_death\\":{}}");
         }
     }
 }, 40);
 
-// リモコン使用（全員開くことができます）
+// 不正ドロップ対策
+system.runInterval(() => {
+    for (const p of world.getAllPlayers()) {
+        try {
+            p.runCommandAsync("kill @e[type=item,name=\\"ミュージックコントローラー\\"]");
+            p.runCommandAsync("kill @e[type=item,type=minecraft:command_block]");
+        } catch(e) {}
+    }
+}, 20);
+
+// リモコン使用処理
 world.beforeEvents.itemUse.subscribe((event) => {
     if (event.itemStack.typeId !== "minecraft:command_block") return;
     const player = event.source;
@@ -442,39 +451,52 @@ function openMainMenu(player) {
         .title(isOp ? "§l音楽プレイヤーメニュー (OPモード)" : "§l音楽プレイヤーメニュー")
         .body(menuBody);
 
+    // インデックス調整用。一般人とOPでボタン数を可変にする
+    let buttonMapping = [];
+
+    form.button(" 自分の音楽を停止", "textures/blocks/barrier");
+    buttonMapping.push("STOP_PERSONAL");
+
     if (isOp) {
-        form.button("🔴 すべての音楽を停止 (個人＆全体)", "textures/blocks/barrier");
-        form.button("⚙ 個人＆全体の音量を調整", "textures/items/comparator");
-    } else {
-        form.button("🔴 自分の音楽を停止", "textures/blocks/barrier");
-        form.button("⚙ 自分の音量を調整", "textures/items/comparator");
+        form.button(" 全員の音楽を停止 (OP専用)", "textures/blocks/fire");
+        buttonMapping.push("STOP_GLOBAL");
     }
 
-    tracks.forEach(track => {
+    form.button("⚙ 音量を調整", "textures/items/comparator");
+    buttonMapping.push("VOLUME_CONFIG");
+
+    tracks.forEach((track, idx) => {
         form.button(track.title, "textures/items/record_11");
+        buttonMapping.push({ type: "TRACK", index: idx });
     });
 
     form.show(player).then(response => {
         if (response.canceled) return;
         
-        if (response.selection === 0) {
+        const action = buttonMapping[response.selection];
+
+        if (action === "STOP_PERSONAL") {
             stopPersonalMusic(player);
+            player.sendMessage("§c再生中の個人BGMを停止しました。");
+            return;
+        }
+        
+        if (action === "STOP_GLOBAL") {
             if (isOp) {
                 stopGlobalMusic();
-                world.sendMessage("§c[Radio] OPによって全体の放送も停止されました。");
-            } else {
-                player.sendMessage("§c再生中の個人BGMを停止しました。");
+                world.sendMessage("§c[Radio] OPによって全体の放送が停止されました。");
             }
             return;
         }
         
-        if (response.selection === 1) {
+        if (action === "VOLUME_CONFIG") {
             openVolumeConfigMenu(player);
             return;
         }
 
-        const trackIndex = response.selection - 2;
-        openTrackMenu(player, trackIndex);
+        if (action && action.type === "TRACK") {
+            openTrackMenu(player, action.index);
+        }
     }).catch(err => console.error(err));
 }
 
@@ -486,7 +508,7 @@ function openVolumeConfigMenu(player) {
     form.slider("自分だけに聴こえる音量 (0% - 100%)", 0, 100, 5, Math.round(personalState.volume * 100));
     
     if (isOp) {
-        form.slider("【OP専用】全員に配信される放送音量 (0% - 100%)", 0, 100, 5, Math.round(globalRadioState.volume * 100));
+        form.slider("【OP専用】全員に適応される音量 (0% - 100%)", 0, 100, 5, Math.round(globalRadioState.volume * 100));
     }
 
     form.show(player).then(response => {
@@ -497,9 +519,8 @@ function openVolumeConfigMenu(player) {
         
         if (isOp && response.formValues[1] !== undefined) {
             globalRadioState.volume = response.formValues[1] / 100;
-            world.sendMessage("§a[Radio] OPによって全体放送音量が " + response.formValues[1] + "% に変更されました。");
+            world.sendMessage("§a[Radio] OPによって全体の音量が " + response.formValues[1] + "% に変更されました。");
             
-            // 全体放送中の音量を即時更新
             if (globalRadioState.currentSound) {
                 const currentIdx = tracks.findIndex(t => t.soundId === globalRadioState.currentSound);
                 if (currentIdx !== -1) {
@@ -511,7 +532,6 @@ function openVolumeConfigMenu(player) {
             }
         }
         
-        // 個人再生中の音量を即時更新
         if (personalState.currentSound) {
             const currentIdx = tracks.findIndex(t => t.soundId === personalState.currentSound);
             if (currentIdx !== -1) {
@@ -542,9 +562,8 @@ function openTrackMenu(player, index) {
         .body(bodyText)
         .button("▶ 自分だけに再生する", "textures/items/iron_ingot");
 
-    // 【重要】全体放送の配信ボタンは、OPタグ(first_op)を持っているプレイヤーだけに表示させる！
     if (isOp) {
-        form.button("📢 ワールドの全員に放送する (OP専用)", "textures/items/emerald");
+        form.button(" ワールドの全員に再生する (OP専用)", "textures/items/emerald");
     }
 
     form.button(personalState.loop ? "自分用ループを【無効】にする" : "自分用ループを【有効】にする", "textures/items/compass_item");
@@ -560,9 +579,7 @@ function openTrackMenu(player, index) {
 
         let sel = response.selection;
         
-        // OPと一般人でボタンの数が変わるため、選択インデックスを安全に判定
         if (sel === 0) {
-            // 自分だけに再生（共通）
             stopPersonalMusic(player);
             personalState.currentSound = track.soundId;
             executePersonalPlay(player, track.soundId, personalState.volume, personalState.loop, index);
@@ -571,7 +588,6 @@ function openTrackMenu(player, index) {
         }
 
         if (isOp) {
-            // --- OPプレイヤーの挙動 ---
             if (sel === 1) {
                 stopGlobalMusic();
                 globalRadioState.currentSound = track.soundId;
@@ -589,7 +605,6 @@ function openTrackMenu(player, index) {
                 openMainMenu(player);
             }
         } else {
-            // --- 一般プレイヤーの挙動 ---
             if (sel === 1) {
                 personalState.loop = !personalState.loop;
                 player.sendMessage("§e自分用のループ設定を切り替えました。");
@@ -601,9 +616,9 @@ function openTrackMenu(player, index) {
     });
 }
 
-// --- 個人再生用処理 ---
+// --- 個人再生用処理 (playsoundのカテゴリをuiに変更) ---
 function executePersonalPlay(player, soundId, volume, loop, index) {
-    player.runCommandAsync("playsound " + soundId + " @s ~ ~ ~ " + volume.toFixed(2));
+    player.runCommandAsync("playsound " + soundId + " ui @s ~ ~ ~ " + volume.toFixed(2));
     const personalState = playerStates.get(player.id);
     if (personalState.nextLoopTimer) {
         system.clearRun(personalState.nextLoopTimer);
@@ -633,10 +648,10 @@ function stopPersonalMusic(player) {
     }
 }
 
-// --- 全体放送用処理 ---
+// --- 全体放送用処理 (playsoundのカテゴリをuiに変更) ---
 function executeGlobalPlay(soundId, volume, loop, index) {
     for (const p of world.getAllPlayers()) {
-        p.runCommandAsync("playsound " + soundId + " @s ~ ~ ~ " + volume.toFixed(2));
+        p.runCommandAsync("playsound " + soundId + " ui @s ~ ~ ~ " + volume.toFixed(2));
     }
     if (globalRadioState.nextLoopTimer) {
         system.clearRun(globalRadioState.nextLoopTimer);
