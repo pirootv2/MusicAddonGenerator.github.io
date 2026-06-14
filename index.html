@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>マイクラ統合版 MUSICジェネレーター</title>
+    <title>マイクラ統合版 MUSICジェネレーターv2</title>
     <style>
         :root {
             --bg-color: #121416;
@@ -334,7 +334,7 @@
             });
         }
 
-        // --- RP Manifest ---
+        // --- Resource Pack Manifest ---
         let rpManifest = {
             "format_version": 2,
             "header": { "description": "Radio Pack Resources", "name": packName + " (RP)", "uuid": rpUuid1, "version": [1, 0, 0], "min_engine_version": [1, 21, 0] },
@@ -342,7 +342,7 @@
         };
         rpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(rpManifest, null, 4)) });
 
-        // --- RP Sound Definitions ---
+        // --- Sound Definitions (uiカテゴリーへ指定) ---
         let soundDefs = {
             "format_version": "1.14.0",
             "sound_definitions": {}
@@ -355,7 +355,7 @@
         });
         rpFilesList.push({ path: "sounds/sound_definitions.json", data: encoder.encode(JSON.stringify(soundDefs, null, 4)) });
 
-        // --- BP Manifest (不要なカスタムアイテム定義ファイルを完全に排除するため、entryスクリプトのみ指定) ---
+        // --- Behavior Pack Manifest (Entryパスを確実にメインスクリプトに固定) ---
         let bpManifest = {
             "format_version": 2,
             "header": { "description": "Radio Pack Behaviors", "name": packName + " (BP)", "uuid": bpUuid1, "version": [1, 0, 0], "min_engine_version": [1, 21, 0] },
@@ -370,7 +370,7 @@
         };
         bpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(bpManifest, null, 4)) });
 
-        // --- BP Scripts (絵文字撤廃・再生表記・クォーテーションバグ完全修正) ---
+        // --- BP Scripts (スペース問題・アイコン未定義バグを完全駆逐した最終版) ---
         let scriptContent = `import { world, system } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 
@@ -384,12 +384,11 @@ const globalRadioState = {
     nextLoopTimer: null
 };
 
-// コントローラー自動支給・固定処理システム
+// コントローラーアイテム自動付与・同期システム
 system.runInterval(() => {
     const allPlayers = world.getAllPlayers();
     if (allPlayers.length === 0) return;
 
-    // すでに first_op タグを持っている人が一人でもいるかチェック(OPが引っかかるように設定)
     let hasOpPlayer = false;
     for (const p of allPlayers) {
         if (p.hasTag("first_op")) {
@@ -426,7 +425,7 @@ system.runInterval(() => {
     }
 }, 40);
 
-// 不正ドロップ・チェスト格納等によるアイテム複製・流出を防ぐクレンジング処理
+// ドロップ・不正流出防止用クレンジング
 system.runInterval(() => {
     try {
         world.getDimension("overworld").runCommandAsync("kill @e[type=item,name=\\"ミュージックコントローラー\\"]");
@@ -434,7 +433,7 @@ system.runInterval(() => {
     } catch(e) {}
 }, 20);
 
-// コントローラー右クリック検知
+// アイテム使用イベント検知インターセプター
 world.beforeEvents.itemUse.subscribe((event) => {
     if (event.itemStack.typeId !== "minecraft:command_block") return;
     const player = event.source;
@@ -455,7 +454,7 @@ function openMainMenu(player) {
     }
 
     const form = new ActionFormData()
-        .title(isOp ? "§l音楽プレイヤーメニュー (OPモード)" : "§l音楽プレイヤーメニュー")
+        .title(isOp ? "音楽プレイヤーメニュー (OPモード)" : "音楽プレイヤーメニュー")
         .body(menuBody);
 
     let buttonMapping = [];
@@ -464,7 +463,8 @@ function openMainMenu(player) {
     buttonMapping.push("STOP_PERSONAL");
 
     if (isOp) {
-        form.button("全員の再生を停止 (OP専用)", "textures/blocks/fire");
+        // 白黒チェッカーエラーを防ぐため、100%確実に存在するレッドストーンブロックに変更
+        form.button("全員の再生を停止 (OP専用)", "textures/blocks/redstone_block");
         buttonMapping.push("STOP_GLOBAL");
     }
 
@@ -523,7 +523,7 @@ function openVolumeConfigMenu(player) {
         if (response.canceled) { openMainMenu(player); return; }
 
         personalState.volume = response.formValues[0] / 100;
-        player.sendMessage("§a自分用音量を " + response.formValues[0] + "% に変更しました。");
+        player.sendMessage("自分用音量を " + response.formValues[0] + "% に変更しました。");
         
         if (isOp && response.formValues[1] !== undefined) {
             globalRadioState.volume = response.formValues[1] / 100;
@@ -640,11 +640,11 @@ function openTrackMenu(player, index) {
     }).catch(err => console.error(err));
 }
 
-// 二重クォーテーションエラーを完全に排除した安全な名前指定型ターゲットセレクタによるplaysound実行
+// スペース配置ミスとクォーテーションバグを完璧に排除した、高精度playsound実行処理
 function executePersonalPlay(player, soundId, volume, loop, index) {
     try {
-        // 名前を @a[name="プレイヤー名"] のセレクタ形式で完全に一本化し、バグの再発を防止
-        player.runCommandAsync("playsound " + soundId + " ui @a[name=\\"" + player.name + "\\"] ~ ~ ~ " + volume.toFixed(2));
+        // 文字列結合のスペース漏れを完全に排除した安全なコマンドを生成
+        player.runCommandAsync(\`playsound \${soundId} ui "\${player.name}" ~ ~ ~ \${volume.toFixed(2)}\`);
     } catch(e) {}
 
     const personalState = playerStates.get(player.id);
@@ -672,7 +672,7 @@ function stopPersonalMusic(player) {
         }
         if (personalState.currentSound) {
             try {
-                player.runCommandAsync("stopsound @a[name=\\"" + player.name + "\\"] " + personalState.currentSound);
+                player.runCommandAsync(\`stopsound "\${player.name}" \${personalState.currentSound}\`);
             } catch(e) {}
             personalState.currentSound = null;
         }
@@ -683,7 +683,7 @@ function executeGlobalPlay(soundId, volume, loop, index) {
     const allPlayers = world.getAllPlayers();
     for (const p of allPlayers) {
         try {
-            p.runCommandAsync("playsound " + soundId + " ui @a[name=\\"" + p.name + "\\"] ~ ~ ~ " + volume.toFixed(2));
+            p.runCommandAsync(\`playsound \${soundId} ui "\${p.name}" ~ ~ ~ \${volume.toFixed(2)}\`);
         } catch(e) {}
     }
 
@@ -702,6 +702,7 @@ function executeGlobalPlay(soundId, volume, loop, index) {
     }
 }
 
+// 全体停止処理の不具合修正
 function stopGlobalMusic() {
     if (globalRadioState.nextLoopTimer) {
         system.clearRun(globalRadioState.nextLoopTimer);
@@ -711,7 +712,7 @@ function stopGlobalMusic() {
         const allPlayers = world.getAllPlayers();
         for (const p of allPlayers) {
             try {
-                p.runCommandAsync("stopsound @a[name=\\"" + p.name + "\\"] " + globalRadioState.currentSound);
+                p.runCommandAsync(\`stopsound "\${p.name}" \${globalRadioState.currentSound}\`);
             } catch(e) {}
         }
         globalRadioState.currentSound = null;
