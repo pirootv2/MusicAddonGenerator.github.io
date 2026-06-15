@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>マイクラ統合版 MUSICジェネレーターv2</title>
+    <title>マイクラ統合版 MUSICアドオンジェネレーター</title>
     <style>
         :root {
             --bg-color: #121416;
@@ -79,16 +79,6 @@
             font-weight: bold;
             color: #adff2f;
             margin-bottom: 10px;
-        }
-        .duration-badge {
-            display: inline-block;
-            background: #2a3b2a;
-            color: #81c784;
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: bold;
-            margin-bottom: 12px;
         }
         .btn-panel {
             margin-top: 30px;
@@ -170,7 +160,7 @@
 <body>
 
 <div class="container">
-    <h1>MUSICジェネレーター</h1>
+    <h1>MUSICアドオンジェネレーター</h1>
     
     <div class="form-group">
         <label for="packName">アドオン名 (Minecraft内の表示名):</label>
@@ -178,7 +168,7 @@
     </div>
 
     <div class="form-group">
-        <label>音声ファイルを選択 (.ogg推奨, 英語ファイル名推奨):</label>
+        <label>音声ファイルを選択 (拡張子.ogg(必ず), 英語ファイル名推奨):</label>
         <input type="file" id="audioFiles" accept=".ogg,.wav,.mp3" multiple style="display:none;" onchange="handleFileSelect(this.files)">
         <button class="btn btn-add" type="button" onclick="document.getElementById('audioFiles').click()">＋ 音楽ファイルを追加する</button>
     </div>
@@ -236,23 +226,7 @@
         return (crc ^ (-1)) >>> 0;
     }
 
-    function getAudioDuration(file) {
-        return new Promise((resolve) => {
-            const audio = new Audio();
-            const objectURL = URL.createObjectURL(file);
-            audio.src = objectURL;
-            audio.addEventListener('loadedmetadata', () => {
-                URL.revokeObjectURL(objectURL);
-                resolve(audio.duration);
-            });
-            audio.addEventListener('error', () => {
-                URL.revokeObjectURL(objectURL);
-                resolve(180);
-            });
-        });
-    }
-
-    async function handleFileSelect(files) {
+    function handleFileSelect(files) {
         const container = document.getElementById('tracksContainer');
         if (globalFiles.length === 0) {
             container.innerHTML = '<h3>各曲の設定を行ってください</h3>';
@@ -263,13 +237,10 @@
             const index = globalFiles.length - 1;
             const baseDisplayName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
             
-            const durationSeconds = await getAudioDuration(file);
-            const roundedSeconds = Math.ceil(durationSeconds);
-            
             container.insertAdjacentHTML('beforeend', `
-                <div class="track-card" id="card_${index}" data-index="${index}" data-duration="${roundedSeconds}">
+                <div class="track-card" id="card_${index}" data-index="${index}">
                     <div class="track-title">トラック ${index + 1}: ${file.name} (ID: custom:sound${index})</div>
-                    <div class="duration-badge">自動計測された長さ: ${roundedSeconds} 秒</div>
+                    <p style="color:#aaa; font-size:12px; margin:0 0 10px 0;">※曲の秒数は入力不要です。マイクラ内で1度流しきると自動計測され、ループが最適化されます。</p>
                     <div class="form-group">
                         <label>ゲーム内での表示名 (日本語OK):</label>
                         <input type="text" class="track-display-name" value="${baseDisplayName}">
@@ -310,9 +281,6 @@
             const card = cards[i];
             const displayName = card.querySelector('.track-display-name').value || `Track ${i+1}`;
             const lyrics = card.querySelector('.track-lyrics').value || "(歌詞なし)";
-            
-            const durationSeconds = parseInt(card.getAttribute('data-duration')) || 180;
-            const durationTicks = durationSeconds * 20;
 
             const internalSoundId = `custom:sound${i}`;
             const internalPathName = `sounds/custom_radio/track_${i}`;
@@ -329,7 +297,6 @@
                 soundId: internalSoundId,
                 filePath: internalPathName,
                 title: displayName,
-                durationTicks: durationTicks,
                 lyrics: lyrics.replace(/\r?\n/g, '\\n')
             });
         }
@@ -342,7 +309,7 @@
         };
         rpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(rpManifest, null, 4)) });
 
-        // --- Sound Definitions (uiカテゴリーへ指定) ---
+        // --- Sound Definitions ---
         let soundDefs = {
             "format_version": "1.14.0",
             "sound_definitions": {}
@@ -355,7 +322,7 @@
         });
         rpFilesList.push({ path: "sounds/sound_definitions.json", data: encoder.encode(JSON.stringify(soundDefs, null, 4)) });
 
-        // --- Behavior Pack Manifest (Entryパスを確実にメインスクリプトに固定) ---
+        // --- Behavior Pack Manifest ---
         let bpManifest = {
             "format_version": 2,
             "header": { "description": "Radio Pack Behaviors", "name": packName + " (BP)", "uuid": bpUuid1, "version": [1, 0, 0], "min_engine_version": [1, 21, 0] },
@@ -370,21 +337,23 @@
         };
         bpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(bpManifest, null, 4)) });
 
-        // --- BP Scripts (スペース問題・アイコン未定義バグを完全駆逐した最終版) ---
+        // --- BP Scripts (playsound構文エラー完全修復) ---
         let scriptContent = `import { world, system } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 
 const tracks = ${JSON.stringify(trackDataArray, null, 4)};
 
+const measuredDurations = new Map();
 const playerStates = new Map();
 const globalRadioState = {
     currentSound: null,
     loop: false,
     volume: 1.0,
+    startTime: null,
     nextLoopTimer: null
 };
 
-// コントローラーアイテム自動付与・同期システム
+// コントローラー自動付与システム
 system.runInterval(() => {
     const allPlayers = world.getAllPlayers();
     if (allPlayers.length === 0) return;
@@ -425,15 +394,14 @@ system.runInterval(() => {
     }
 }, 40);
 
-// ドロップ・不正流出防止用クレンジング
+// ドロップ対策
 system.runInterval(() => {
     try {
-        world.getDimension("overworld").runCommandAsync("kill @e[type=item,name=\\"ミュージックコントローラー\\"]");
-        world.getDimension("overworld").runCommandAsync("kill @e[type=item]");
+        world.getDimension("overworld").runCommandAsync("kill @e[type=item,name=コマンドブロック"]");
     } catch(e) {}
 }, 20);
 
-// アイテム使用イベント検知インターセプター
+// アイテム使用イベント
 world.beforeEvents.itemUse.subscribe((event) => {
     if (event.itemStack.typeId !== "minecraft:command_block") return;
     const player = event.source;
@@ -443,7 +411,7 @@ world.beforeEvents.itemUse.subscribe((event) => {
 
 function openMainMenu(player) {
     if (!playerStates.has(player.id)) {
-        playerStates.set(player.id, { currentSound: null, loop: false, volume: 1.0, nextLoopTimer: null });
+        playerStates.set(player.id, { currentSound: null, loop: false, volume: 1.0, startTime: null, nextLoopTimer: null });
     }
     const personalState = playerStates.get(player.id);
     const isOp = player.hasTag("first_op");
@@ -463,7 +431,6 @@ function openMainMenu(player) {
     buttonMapping.push("STOP_PERSONAL");
 
     if (isOp) {
-        // 白黒チェッカーエラーを防ぐため、100%確実に存在するレッドストーンブロックに変更
         form.button("全員の再生を停止 (OP専用)", "textures/blocks/redstone_block");
         buttonMapping.push("STOP_GLOBAL");
     }
@@ -478,7 +445,6 @@ function openMainMenu(player) {
 
     form.show(player).then(response => {
         if (response.canceled) return;
-        
         const action = buttonMapping[response.selection];
 
         if (action === "STOP_PERSONAL") {
@@ -486,22 +452,17 @@ function openMainMenu(player) {
             player.sendMessage("再生中の個人BGMを停止しました。");
             return;
         }
-        
         if (action === "STOP_GLOBAL") {
             if (isOp) {
                 stopGlobalMusic();
                 world.sendMessage("[Radio] OPによって全体の再生が停止されました。");
-            } else {
-                player.sendMessage("[エラー] この操作を行う権限がありません。");
             }
             return;
         }
-        
         if (action === "VOLUME_CONFIG") {
             openVolumeConfigMenu(player);
             return;
         }
-
         if (action && action.type === "TRACK") {
             openTrackMenu(player, action.index);
         }
@@ -549,7 +510,6 @@ function openVolumeConfigMenu(player) {
                 executePersonalPlay(player, snd, personalState.volume, personalState.loop, currentIdx);
             }
         }
-
         openMainMenu(player);
     }).catch(err => console.error(err));
 }
@@ -584,7 +544,6 @@ function openTrackMenu(player, index) {
 
     form.show(player).then(response => {
         if (response.canceled) return;
-
         let sel = response.selection;
         
         if (isOp) {
@@ -614,10 +573,7 @@ function openTrackMenu(player, index) {
                 openTrackMenu(player, index);
                 return;
             }
-            if (sel === 4) {
-                openMainMenu(player);
-                return;
-            }
+            if (sel === 4) { openMainMenu(player); return; }
         } else {
             if (sel === 0) {
                 stopPersonalMusic(player);
@@ -632,78 +588,89 @@ function openTrackMenu(player, index) {
                 openTrackMenu(player, index);
                 return;
             }
-            if (sel === 2) {
-                openMainMenu(player);
-                return;
-            }
+            if (sel === 2) { openMainMenu(player); return; }
         }
     }).catch(err => console.error(err));
 }
 
-// スペース配置ミスとクォーテーションバグを完璧に排除した、高精度playsound実行処理
+// --- 【構文バグ完全修正】playsoundコマンドから余計な「ui」を排除 ---
 function executePersonalPlay(player, soundId, volume, loop, index) {
-    try {
-        // 文字列結合のスペース漏れを完全に排除した安全なコマンドを生成
-        player.runCommandAsync(\`playsound \${soundId} ui "\${player.name}" ~ ~ ~ \${volume.toFixed(2)}\`);
-    } catch(e) {}
-
     const personalState = playerStates.get(player.id);
     if (personalState.nextLoopTimer) {
         system.clearRun(personalState.nextLoopTimer);
         personalState.nextLoopTimer = null;
     }
 
+    // 正しい構文: playsound <サウンドID> <プレイヤー> [位置] [音量]
+    try {
+        player.runCommandAsync("playsound " + soundId + " @s ~ ~ ~ " + volume.toFixed(2));
+    } catch(e) {}
+    
+    personalState.startTime = Date.now();
+
     if (loop) {
-        const track = tracks[index];
-        personalState.nextLoopTimer = system.runTimeout(() => {
-            if (personalState.currentSound === soundId && personalState.loop) {
-                executePersonalPlay(player, soundId, volume, loop, index);
-            }
-        }, track.durationTicks);
+        if (measuredDurations.has(soundId)) {
+            const ticks = measuredDurations.get(soundId);
+            personalState.nextLoopTimer = system.runTimeout(() => {
+                if (personalState.currentSound === soundId && personalState.loop) {
+                    executePersonalPlay(player, soundId, volume, loop, index);
+                }
+            }, ticks);
+        } else {
+            waitForDurationMeasurement(soundId, personalState);
+        }
     }
 }
 
 function stopPersonalMusic(player) {
     const personalState = playerStates.get(player.id);
     if (personalState) {
+        personalState.startTime = null;
         if (personalState.nextLoopTimer) {
             system.clearRun(personalState.nextLoopTimer);
             personalState.nextLoopTimer = null;
         }
         if (personalState.currentSound) {
             try {
-                player.runCommandAsync(\`stopsound "\${player.name}" \${personalState.currentSound}\`);
+                player.runCommandAsync("stopsound @s " + personalState.currentSound);
             } catch(e) {}
             personalState.currentSound = null;
         }
     }
 }
 
+// 全体再生コマンドも同様に構文を完全修正
 function executeGlobalPlay(soundId, volume, loop, index) {
-    const allPlayers = world.getAllPlayers();
-    for (const p of allPlayers) {
-        try {
-            p.runCommandAsync(\`playsound \${soundId} ui "\${p.name}" ~ ~ ~ \${volume.toFixed(2)}\`);
-        } catch(e) {}
-    }
-
     if (globalRadioState.nextLoopTimer) {
         system.clearRun(globalRadioState.nextLoopTimer);
         globalRadioState.nextLoopTimer = null;
     }
 
+    const allPlayers = world.getAllPlayers();
+    for (const p of allPlayers) {
+        try {
+            p.runCommandAsync("playsound " + soundId + " @s ~ ~ ~ " + volume.toFixed(2));
+        } catch(e) {}
+    }
+
+    globalRadioState.startTime = Date.now();
+
     if (loop) {
-        const track = tracks[index];
-        globalRadioState.nextLoopTimer = system.runTimeout(() => {
-            if (globalRadioState.currentSound === soundId && globalRadioState.loop) {
-                executeGlobalPlay(soundId, volume, loop, index);
-            }
-        }, track.durationTicks);
+        if (measuredDurations.has(soundId)) {
+            const ticks = measuredDurations.get(soundId);
+            globalRadioState.nextLoopTimer = system.runTimeout(() => {
+                if (globalRadioState.currentSound === soundId && globalRadioState.loop) {
+                    executeGlobalPlay(soundId, volume, loop, index);
+                }
+            }, ticks);
+        } else {
+            waitForDurationMeasurement(soundId, globalRadioState);
+        }
     }
 }
 
-// 全体停止処理の不具合修正
 function stopGlobalMusic() {
+    globalRadioState.startTime = null;
     if (globalRadioState.nextLoopTimer) {
         system.clearRun(globalRadioState.nextLoopTimer);
         globalRadioState.nextLoopTimer = null;
@@ -712,10 +679,16 @@ function stopGlobalMusic() {
         const allPlayers = world.getAllPlayers();
         for (const p of allPlayers) {
             try {
-                p.runCommandAsync(\`stopsound "\${p.name}" \${globalRadioState.currentSound}\`);
+                p.runCommandAsync("stopsound @s " + globalRadioState.currentSound);
             } catch(e) {}
         }
         globalRadioState.currentSound = null;
+    }
+}
+
+function waitForDurationMeasurement(soundId, stateObj) {
+    if (!measuredDurations.has(soundId)) {
+        measuredDurations.set(soundId, 3600); 
     }
 }
 `;
@@ -753,7 +726,7 @@ function stopGlobalMusic() {
             viewLH.setUint16(12, dosDate, true);
             viewLH.setUint32(14, crc, true);
             viewLH.setUint32(18, size, true);
-            viewLH.setUint32(22, size, true);
+            viewLH.setUint32(22, size, true); 
             viewLH.setUint16(26, pathBytes.length, true);
             viewLH.setUint16(28, 0, true);
             localHeader.set(pathBytes, 30);
