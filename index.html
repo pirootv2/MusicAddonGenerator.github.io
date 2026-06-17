@@ -333,7 +333,10 @@
             "dependencies": [
                 { "module_name": "@minecraft/server", "version": "1.13.0" },
                 { "module_name": "@minecraft/server-ui", "version": "1.2.0" }
-            ]
+            ],
+            "metadata": {
+                "product_type": "addon"
+            }
         };
         bpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(bpManifest, null, 4)) });
 
@@ -603,6 +606,7 @@ function executePersonalPlay(player, soundId, volume, loop, index) {
 
     // 正しい構文: playsound <サウンドID> <プレイヤー> [位置] [音量]
     try {
+        player.runCommandAsync("stopsound @s");
         player.runCommandAsync("playsound " + soundId + " @s ~ ~ ~ " + volume.toFixed(2));
     } catch(e) {}
     
@@ -632,7 +636,7 @@ function stopPersonalMusic(player) {
         }
         if (personalState.currentSound) {
             try {
-                player.runCommandAsync("stopsound @s " + personalState.currentSound);
+                player.runCommandAsync("stopsound @s");
             } catch(e) {}
             personalState.currentSound = null;
         }
@@ -649,6 +653,7 @@ function executeGlobalPlay(soundId, volume, loop, index) {
     const allPlayers = world.getAllPlayers();
     for (const p of allPlayers) {
         try {
+            p.runCommandAsync("stopsound @a);
             p.runCommandAsync("playsound " + soundId + " @s ~ ~ ~ " + volume.toFixed(2));
         } catch(e) {}
     }
@@ -679,7 +684,7 @@ function stopGlobalMusic() {
         const allPlayers = world.getAllPlayers();
         for (const p of allPlayers) {
             try {
-                p.runCommandAsync("stopsound @s " + globalRadioState.currentSound);
+                p.runCommandAsync("stopsound @a);
             } catch(e) {}
         }
         globalRadioState.currentSound = null;
