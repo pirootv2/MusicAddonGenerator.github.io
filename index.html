@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>マイクラ統合版 MUSICアドオンジェネレーター</title>
+    <title>マイクラ統合版 MUSICアドオンジェネレーター v1.0.0</title>
     <style>
         :root {
             --bg-color: #121416;
@@ -160,7 +160,7 @@
 <body>
 
 <div class="container">
-    <h1>MUSICアドオンジェネレーター</h1>
+    <h1>MUSICアドオンジェネレーター v1.0.0</h1>
     
     <div class="form-group">
         <label for="packName">アドオン名 (Minecraft内の表示名):</label>
@@ -174,7 +174,7 @@
     </div>
 
     <div id="tracksContainer">
-        </div>
+    </div>
 
     <div class="btn-panel">
         <label style="color:var(--accent-color); font-weight: bold;">ステップ1: パックデータを構築・確定します</label>
@@ -340,7 +340,7 @@
         };
         bpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(bpManifest, null, 4)) });
 
-        // --- BP Scripts (playsound構文エラー完全修復) ---
+        // --- BP Scripts (タイポ・構文エラー修正版) ---
         let scriptContent = `import { world, system } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 
@@ -400,7 +400,7 @@ system.runInterval(() => {
 // ドロップ対策
 system.runInterval(() => {
     try {
-        world.getDimension("overworld").runCommandAsync("kill @e[type=item,name=コマンドブロック]");
+        world.getDimension("overworld").runCommandAsync("kill @e[type=item,name=\\"コマンドブロック\\"]");
     } catch(e) {}
 }, 20);
 
@@ -596,7 +596,6 @@ function openTrackMenu(player, index) {
     }).catch(err => console.error(err));
 }
 
-// --- 【構文バグ完全修正】playsoundコマンドから余計な「ui」を排除 ---
 function executePersonalPlay(player, soundId, volume, loop, index) {
     const personalState = playerStates.get(player.id);
     if (personalState.nextLoopTimer) {
@@ -604,7 +603,6 @@ function executePersonalPlay(player, soundId, volume, loop, index) {
         personalState.nextLoopTimer = null;
     }
 
-    // 正しい構文: playsound <サウンドID> <プレイヤー> [位置] [音量]
     try {
         player.runCommandAsync("stopsound @s");
         player.runCommandAsync("playsound " + soundId + " @s ~ ~ ~ " + volume.toFixed(2));
@@ -643,7 +641,6 @@ function stopPersonalMusic(player) {
     }
 }
 
-// 全体再生コマンドも同様に構文を完全修正
 function executeGlobalPlay(soundId, volume, loop, index) {
     if (globalRadioState.nextLoopTimer) {
         system.clearRun(globalRadioState.nextLoopTimer);
