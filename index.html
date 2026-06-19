@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>マイクラ統合版 MUSICアドオンジェネレーター v1.0.0</title>
+    <title>マイクラ統合版 MUSICアドオンジェネレーター</title>
     <style>
         :root {
             --bg-color: #121416;
@@ -160,7 +160,7 @@
 <body>
 
 <div class="container">
-    <h1>MUSICアドオンジェネレーター v1.0.0</h1>
+    <h1>MUSICアドオンジェネレーター</h1>
     
     <div class="form-group">
         <label for="packName">アドオン名 (Minecraft内の表示名):</label>
@@ -400,7 +400,7 @@ system.runInterval(() => {
 // ドロップ対策
 system.runInterval(() => {
     try {
-        world.getDimension("overworld").runCommandAsync("kill @e[type=item,name=コマンドブロック"]");
+        world.getDimension("overworld").runCommandAsync("kill @e[type=item,name=コマンドブロック]");
     } catch(e) {}
 }, 20);
 
@@ -653,7 +653,7 @@ function executeGlobalPlay(soundId, volume, loop, index) {
     const allPlayers = world.getAllPlayers();
     for (const p of allPlayers) {
         try {
-            p.runCommandAsync("stopsound @a);
+            p.runCommandAsync("stopsound @a");
             p.runCommandAsync("playsound " + soundId + " @s ~ ~ ~ " + volume.toFixed(2));
         } catch(e) {}
     }
@@ -684,7 +684,7 @@ function stopGlobalMusic() {
         const allPlayers = world.getAllPlayers();
         for (const p of allPlayers) {
             try {
-                p.runCommandAsync("stopsound @a);
+                p.runCommandAsync("stopsound @a");
             } catch(e) {}
         }
         globalRadioState.currentSound = null;
