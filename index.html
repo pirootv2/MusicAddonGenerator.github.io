@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>マイクラ統合版 MUSICアドオンジェネレーター v1.0.0</title>
+    <title>マイクラ統合版 MUSICアドオンジェネレーター v1.0.2</title>
     <style>
         :root {
             --bg-color: #121416;
@@ -160,7 +160,7 @@
 <body>
 
 <div class="container">
-    <h1>MUSICアドオンジェネレーター v1.0.0</h1>
+    <h1>MUSICアドオンジェネレーター v1.0.2</h1>
     
     <div class="form-group">
         <label for="packName">アドオン名 (Minecraft内の表示名):</label>
@@ -169,7 +169,7 @@
 
     <div class="form-group">
         <label>音声ファイルを選択 (拡張子.ogg(必ず), 英語ファイル名推奨):</label>
-        <input type="file" id="audioFiles" accept=".ogg,.wav,.mp3" multiple style="display:none;" onchange="handleFileSelect(this.files)">
+        <input type="file" id="audioFiles" accept="audio/*,.ogg" multiple style="display:none;" onchange="handleFileSelect(this.files)">
         <button class="btn btn-add" type="button" onclick="document.getElementById('audioFiles').click()">＋ 音楽ファイルを追加する</button>
     </div>
 
@@ -340,7 +340,7 @@
         };
         bpFilesList.push({ path: "manifest.json", data: encoder.encode(JSON.stringify(bpManifest, null, 4)) });
 
-        // --- BP Scripts (タイポ・構文エラー修正版) ---
+        // --- BP Scripts ---
         let scriptContent = `import { world, system } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 
